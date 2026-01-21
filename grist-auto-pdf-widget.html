@@ -433,6 +433,9 @@
 
     <div class="controls">
       <div class="button-group">
+        <select id="rowSelector" style="padding: 10px 12px; border: 1px solid #d0d0d0; border-radius: 3px; font-size: 13px; background: white; cursor: pointer;">
+          <option value="">Select a record to export...</option>
+        </select>
         <button class="btn-download" id="downloadBtn" disabled>
           Download PDF
         </button>
@@ -555,6 +558,7 @@
     const configPanel = document.getElementById('configPanel');
     const previewDiv = document.getElementById('pdfPreview');
     const statusDiv = document.getElementById('status');
+    const rowSelector = document.getElementById('rowSelector');
 
     // Configuration UI Elements
     const logoUploadInput = document.getElementById('logoUpload');
@@ -701,12 +705,41 @@
     // Handle multiple records
     grist.onRecords(function(records) {
       allRecords = records;
+      
+      // Populate row selector dropdown
+      rowSelector.innerHTML = '<option value="">Select a record to export...</option>';
+      
+      records.forEach((record, index) => {
+        // Try to get a display name for the option
+        const nameField = Object.entries(record).find(
+          ([key]) => key.toLowerCase().includes('name') || key.toLowerCase() === 'fullname'
+        );
+        const displayName = nameField ? nameField[1] : `Record ${index + 1}`;
+        
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = `${displayName}`;
+        rowSelector.appendChild(option);
+      });
+      
       if (records.length > 0 && !currentRecord) {
         currentRecord = records[0];
         renderPreview();
         downloadBtn.disabled = false;
         showStatus(`Loaded ${records.length} record(s)`, 'success');
         setTimeout(hideStatus, 2000);
+      }
+    });
+
+    // Handle row selection
+    rowSelector.addEventListener('change', function() {
+      const selectedIndex = parseInt(this.value);
+      if (!isNaN(selectedIndex) && allRecords[selectedIndex]) {
+        currentRecord = allRecords[selectedIndex];
+        renderPreview();
+        downloadBtn.disabled = false;
+        showStatus('Record selected', 'success');
+        setTimeout(hideStatus, 1500);
       }
     });
 
@@ -972,9 +1005,19 @@
 
     // Reload data
     reloadBtn.addEventListener('click', function() {
-      showStatus('Reloading data...', 'loading');
-      grist.refreshSymbol();
-      setTimeout(hideStatus, 1000);
+      if (!currentRecord) {
+        showStatus('No record selected', 'info');
+        setTimeout(hideStatus, 2000);
+        return;
+      }
+      
+      showStatus('Refreshing record...', 'loading');
+      // Simply re-render the preview with current data
+      renderPreview();
+      setTimeout(() => {
+        showStatus('Record refreshed', 'success');
+        setTimeout(hideStatus, 2000);
+      }, 500);
     });
 
     // Helpers
