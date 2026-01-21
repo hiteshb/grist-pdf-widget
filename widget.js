@@ -118,8 +118,7 @@ function hideStatus() {
 
 grist.ready({
   requiredFields: [],
-  columns: 'all',
-  requiredAccess: 'read table'
+  columns: 'all'
 });
 
 grist.onRecord(function(record) {
