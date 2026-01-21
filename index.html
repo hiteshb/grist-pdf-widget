@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grist PDF Export Widget</title>
+  
+  <!-- Grist Plugin API - REQUIRED -->
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  
+  <!-- External Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
+  <!-- External Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>PDF Export</h1>
+      <p>Generate professional PDF documents from table records</p>
+    </div>
+
+    <div class="controls">
+      <div class="button-group">
+        <select id="rowSelector" style="padding: 10px 12px; border: 1px solid #d0d0d0; border-radius: 3px; font-size: 13px; background: white; cursor: pointer;">
+          <option value="">Select a record to export...</option>
+        </select>
+        <button class="btn-download" id="downloadBtn" disabled>
+          Download PDF
+        </button>
+        <button class="btn-reload" id="reloadBtn">
+          Reload Data
+        </button>
+        <span class="settings-icon" id="settingsToggle" title="Settings">⚙</span>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="config-panel" id="configPanel">
+      <h3 style="margin-bottom: 15px; color: #1a1a1a; font-size: 14px; font-weight: 600;">Settings</h3>
+      
+      <div class="config-grid">
+        <div class="config-item">
+          <label>Organization Logo</label>
+          <input type="file" id="logoUpload" accept="image/*">
+          <small style="color: #666; font-size: 11px;">Recommended: 200x80px, PNG/JPG</small>
+        </div>
+        <div class="config-item">
+          <label>Fallback Institution Name</label>
+          <input type="text" id="institutionName" placeholder="Used if auto-detect fails" value="Organization">
+          <small style="color: #666; font-size: 11px;">Shown if no logo</small>
+        </div>
+      </div>
+
+      <div class="config-grid">
+        <div class="config-item">
+          <label>Student Name Column</label>
+          <input type="text" id="nameColumn" placeholder="e.g., Name, FullName" value="Name">
+          <small style="color: #666; font-size: 11px;">Column for document title</small>
+        </div>
+        <div class="config-item">
+          <label>Fallback Document Title</label>
+          <input type="text" id="documentTitle" placeholder="Used if column missing" value="Official Record">
+          <small style="color: #666; font-size: 11px;">If name not found</small>
+        </div>
+      </div>
+
+      <div class="config-grid">
+        <div class="config-item">
+          <label>PDF Orientation</label>
+          <select id="orientation">
+            <option value="portrait">Portrait</option>
+            <option value="landscape">Landscape</option>
+          </select>
+        </div>
+        <div class="config-item">
+          <label>Page Size</label>
+          <select id="pageSize">
+            <option value="a4">A4</option>
+            <option value="letter">Letter (US)</option>
+            <option value="legal">Legal</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 15px;">
+        <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; color: #1a1a1a; cursor: pointer; font-size: 13px;">
+          <input type="checkbox" id="includeTimestamp" checked>
+          <span>Include timestamp and document ID</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; color: #1a1a1a; cursor: pointer; font-size: 13px; margin-top: 8px;">
+          <input type="checkbox" id="includeImages" checked>
+          <span>Embed images in PDF</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; color: #1a1a1a; cursor: pointer; font-size: 13px; margin-top: 8px;">
+          <input type="checkbox" id="includeHeaders" checked>
+          <span>Show field labels (column names)</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; color: #1a1a1a; cursor: pointer; font-size: 13px; margin-top: 8px;">
+          <input type="checkbox" id="includeSignatureLine" checked>
+          <span>Add signature line at bottom</span>
+        </label>
+      </div>
+
+      <div class="config-item">
+        <label>Exclude Columns (comma-separated)</label>
+        <input type="text" id="excludeColumns" placeholder="e.g., id, internal_field, notes" value="id,createdAt,updatedAt">
+      </div>
+
+      <div class="config-buttons" style="margin-top: 15px;">
+        <button class="btn-small btn-apply" id="applyConfig">Apply Settings</button>
+        <button class="btn-small btn-reset" id="resetConfig">Reset to Defaults</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div id="pdfPreview" class="preview-section"></div>
+    </div>
+  </div>
+
+  <!-- External JavaScript -->
+  <script src="widget.js"></script>
+</body>
+</html>
