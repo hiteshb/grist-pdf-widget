@@ -399,11 +399,18 @@ function getDisplayFields(record) {
 
   Object.entries(record).forEach(([key, value]) => {
     if (!excluded.has(key.toLowerCase()) && value != null && value !== '') {
+      const isImg = config.includeImages && isImageUrl(value);
+      
+      // DEBUG: Log image fields
+      if (isImg) {
+        console.log('Image field detected:', key, 'Value:', value, 'Type:', typeof value);
+      }
+      
       fields.push({
         key,
         label: formatFieldName(key),
         value: value,
-        isImage: config.includeImages && isImageUrl(value)
+        isImage: isImg
       });
     }
   });
@@ -555,8 +562,29 @@ function escapeHtml(text) {
 function isImageUrl(str) {
   if (!str) return false;
   try {
-    return /\.(jpg|jpeg|png|gif|webp)$/i.test(str) || /^data:image/.test(str);
-  } catch {
+    const strVal = String(str).toLowerCase();
+    
+    // Check for image file extensions
+    if (/\.(jpg|jpeg|png|gif|webp)$/i.test(strVal)) return true;
+    
+    // Check for base64 image data
+    if (/^data:image/.test(strVal)) return true;
+    
+    // Check for URLs containing image patterns
+    if (strVal.includes('image') || strVal.includes('.png') || strVal.includes('.jpg') || 
+        strVal.includes('.jpeg') || strVal.includes('.gif')) {
+      return true;
+    }
+    
+    // Grist attachment fields might come as objects - check for that
+    if (typeof str === 'object' && str !== null) {
+      console.log('Object field detected (might be attachment):', str);
+      return false; // Will need special handling
+    }
+    
+    return false;
+  } catch (e) {
+    console.log('Image detection error:', e);
     return false;
   }
 }
