@@ -190,7 +190,6 @@ downloadBtn.addEventListener('click', async function() {
   try {
     const { jsPDF } = window.jspdf;
     
-    // Create text-based PDF (not image-based)
     const pdf = new jsPDF({
       orientation: config.orientation,
       unit: 'mm',
@@ -199,120 +198,193 @@ downloadBtn.addEventListener('click', async function() {
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    let yPosition = 20;
-    const leftMargin = 15;
-    const rightMargin = pageWidth - 15;
+    let yPosition = 15;
+    const leftMargin = 12;
+    const rightMargin = pageWidth - 12;
     const maxWidth = rightMargin - leftMargin;
 
-    // Set font
-    pdf.setFont('helvetica');
-
-    // Add header with logo or institution name
-    if (config.logoUrl) {
-      try {
-        pdf.addImage(config.logoUrl, 'PNG', leftMargin, 10, 50, 20);
-        yPosition = 35;
-      } catch (e) {
-        console.log('Logo load failed, using text instead');
+    // Helper function to add new page if needed
+    function checkPageBreak(spaceNeeded = 20) {
+      if (yPosition + spaceNeeded > pageHeight - 15) {
+        pdf.addPage();
+        yPosition = 15;
       }
     }
 
-    if (!config.logoUrl || yPosition === 20) {
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(config.institutionName, pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 10;
+    // Add header with logo or institution
+    if (config.logoUrl) {
+      try {
+        pdf.addImage(config.logoUrl, 'PNG', leftMargin, yPosition, 40, 15);
+        yPosition += 18;
+      } catch (e) {
+        console.log('Logo load failed');
+      }
     }
 
     // Add title
     const studentName = currentRecord[config.nameColumn] || config.documentTitle;
-    pdf.setFontSize(16);
     pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(16);
     pdf.text(String(studentName), pageWidth / 2, yPosition, { align: 'center' });
     yPosition += 8;
 
-    // Add subtitle
-    pdf.setFontSize(10);
+    // Add institution name
     pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
     pdf.setTextColor(100, 100, 100);
-    pdf.text('Official Record', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 15;
+    pdf.text(config.institutionName, pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 10;
+
+    // Add horizontal line
+    pdf.setDrawColor(26, 115, 232);
+    pdf.setLineWidth(0.5);
+    pdf.line(leftMargin, yPosition, rightMargin, yPosition);
+    yPosition += 8;
 
     // Reset text color
     pdf.setTextColor(0, 0, 0);
 
-    // Add horizontal line
-    pdf.setDrawColor(26, 115, 232);
-    pdf.line(leftMargin, yPosition, rightMargin, yPosition);
-    yPosition += 10;
-
-    // Add record information
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(12);
-    if (config.includeHeaders) {
-      pdf.text('Record Information', leftMargin, yPosition);
-      yPosition += 8;
-    }
-
     // Get fields to display
     const fields = getDisplayFields(currentRecord);
     
+    // Separate text fields and image fields
+    const textFields = fields.filter(f => !f.isImage);
+    const imageFields = fields.filter(f => f.isImage && config.includeImages);
+
+    // Add text fields in 2-column layout
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(10);
+    pdf.setFontSize(9);
 
-    // Add fields
-    for (const field of fields) {
-      if (field.isImage && config.includeImages) {
-        // Skip images in text-based PDF (they make it large)
-        continue;
+    let col1Fields = [];
+    let col2Fields = [];
+
+    for (let i = 0; i < textFields.length; i++) {
+      if (i % 2 === 0) {
+        col1Fields.push(textFields[i]);
+      } else {
+        col2Fields.push(textFields[i]);
       }
-
-      const label = field.label;
-      const value = String(field.value).substring(0, 100);
-
-      // Check if we need a new page
-      if (yPosition > pageHeight - 20) {
-        pdf.addPage();
-        yPosition = 20;
-      }
-
-      // Add field
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(9);
-      pdf.setTextColor(85, 85, 85);
-      pdf.text(`${label}:`, leftMargin, yPosition);
-
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(0, 0, 0);
-      pdf.text(value, leftMargin + 60, yPosition);
-
-      yPosition += 7;
     }
 
-    yPosition += 5;
+    // Draw text fields in two columns
+    let col1Y = yPosition;
+    let col2Y = yPosition;
+    const colWidth = (maxWidth - 5) / 2;
+    const col1X = leftMargin;
+    const col2X = leftMargin + colWidth + 5;
 
-    // Add signature line if enabled
-    if (config.includeSignatureLine) {
-      if (yPosition > pageHeight - 40) {
-        pdf.addPage();
-        yPosition = 20;
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.text('Information', col1X, col1Y);
+    col1Y += 7;
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8);
+
+    // Column 1
+    for (const field of col1Fields) {
+      checkPageBreak(8);
+      
+      // Field label
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8);
+      pdf.setTextColor(70, 70, 70);
+      pdf.text(field.label + ':', col1X, col1Y);
+      col1Y += 4;
+
+      // Field value
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0, 0, 0);
+      const value = String(field.value).substring(0, 80);
+      const splitValue = pdf.splitTextToSize(value, colWidth - 2);
+      pdf.text(splitValue, col1X + 2, col1Y);
+      col1Y += splitValue.length * 3.5 + 4;
+    }
+
+    // Column 2
+    for (const field of col2Fields) {
+      if (col2Y > col1Y - 5) {
+        col2Y = col1Y - 5;
       }
 
+      // Field label
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8);
+      pdf.setTextColor(70, 70, 70);
+      pdf.text(field.label + ':', col2X, col2Y);
+      col2Y += 4;
+
+      // Field value
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0, 0, 0);
+      const value = String(field.value).substring(0, 80);
+      const splitValue = pdf.splitTextToSize(value, colWidth - 2);
+      pdf.text(splitValue, col2X + 2, col2Y);
+      col2Y += splitValue.length * 3.5 + 4;
+    }
+
+    yPosition = Math.max(col1Y, col2Y) + 10;
+
+    // Add image attachments (ID proofs, photos, etc)
+    if (imageFields.length > 0) {
+      checkPageBreak(40);
+
+      // Add section title
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(11);
-      pdf.text('Signature', leftMargin, yPosition);
-      yPosition += 10;
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Attachments & ID Proof', leftMargin, yPosition);
+      yPosition += 8;
+
+      // Add images
+      for (const imageField of imageFields) {
+        try {
+          checkPageBreak(60);
+
+          // Image label
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(9);
+          pdf.setTextColor(70, 70, 70);
+          pdf.text(imageField.label + ':', leftMargin, yPosition);
+          yPosition += 6;
+
+          // Add image
+          pdf.addImage(imageField.value, 'JPEG', leftMargin + 2, yPosition, 80, 60);
+          yPosition += 65;
+
+        } catch (e) {
+          console.log('Image load failed for:', imageField.label);
+          yPosition += 10;
+        }
+      }
+    }
+
+    // Add signature section if enabled
+    if (config.includeSignatureLine) {
+      checkPageBreak(30);
+
+      pdf.setDrawColor(200, 200, 200);
+      pdf.setLineWidth(0.3);
+      pdf.rect(leftMargin, yPosition, maxWidth, 25);
+      yPosition += 3;
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      pdf.text('Signature Section', leftMargin + 2, yPosition);
+      yPosition += 8;
 
       pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(9);
-      pdf.line(leftMargin, yPosition, leftMargin + 50, yPosition);
-      yPosition += 5;
-      pdf.text('Authorized Signature', leftMargin, yPosition);
-      yPosition += 10;
+      pdf.setFontSize(8);
       
-      pdf.line(leftMargin, yPosition, leftMargin + 50, yPosition);
-      yPosition += 5;
-      pdf.text('Date', leftMargin, yPosition);
+      // Signature line
+      pdf.line(leftMargin + 2, yPosition + 10, leftMargin + 40, yPosition + 10);
+      pdf.text('Signature', leftMargin + 2, yPosition + 12);
+
+      // Date line
+      pdf.line(leftMargin + 50, yPosition + 10, leftMargin + 80, yPosition + 10);
+      pdf.text('Date', leftMargin + 50, yPosition + 12);
+
+      yPosition += 22;
     }
 
     // Add footer
@@ -323,10 +395,12 @@ downloadBtn.addEventListener('click', async function() {
       );
       const recordId = idField ? idField[1] : 'Record';
 
-      pdf.setFontSize(8);
+      yPosition = pageHeight - 12;
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7);
       pdf.setTextColor(150, 150, 150);
-      pdf.text(`Generated on: ${timestamp}`, leftMargin, pageHeight - 15);
-      pdf.text(`Document ID: ${String(recordId)}-${Date.now()}`, leftMargin, pageHeight - 10);
+      pdf.text(`Generated: ${timestamp}`, leftMargin, yPosition);
+      pdf.text(`ID: ${String(recordId)}-${Date.now()}`, rightMargin - 30, yPosition, { align: 'right' });
     }
 
     // Download
@@ -530,10 +604,12 @@ function getDisplayFields(record) {
 
 function formatFieldName(fieldName) {
   return fieldName
+    .replace(/_/g, ' ')
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, str => str.toUpperCase())
     .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .trim();
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 function generatePDFContent(record) {
