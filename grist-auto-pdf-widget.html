@@ -696,16 +696,38 @@
 
     // Handle single record (the selected row)
     grist.onRecord(function(record) {
+      console.log('=== GRIST onRecord ===');
+      console.log('Record received:', record);
+      console.log('Record keys:', record ? Object.keys(record) : 'null');
+      console.log('Record type:', typeof record);
+      
       if (record && Object.keys(record).length > 0) {
         currentRecord = record;
+        console.log('Setting currentRecord:', currentRecord);
         renderPreview();
         downloadBtn.disabled = false;
         
         // Populate dropdown with just this record for now
         rowSelector.innerHTML = '<option value="0" selected>Current Record</option>';
         allRecords = [record];
+        console.log('Data loaded successfully');
+      } else {
+        console.log('Record is empty or null');
+        renderEmptyState();
       }
     });
+
+    // Also log when onOptions is called
+    grist.onOptions(function(options, interaction) {
+      console.log('=== GRIST onOptions ===');
+      console.log('Options:', options);
+      console.log('Interaction:', interaction);
+    });
+
+    // Log when widget is ready
+    console.log('=== Widget Initialized ===');
+    console.log('CurrentRecord:', currentRecord);
+    console.log('AllRecords:', allRecords);
 
     // Handle table metadata
     grist.onOptions(function(options) {
