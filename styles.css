@@ -148,6 +148,12 @@ select {
   background: white;
   cursor: pointer;
   font-family: inherit;
+  color: #1a1a1a;
+}
+
+.config-item input::placeholder {
+  color: #999;
+  opacity: 1;
 }
 
 .config-item input[type="checkbox"] {
@@ -389,8 +395,11 @@ select {
 
 .settings-icon {
   cursor: pointer;
-  font-size: 20px;
+  font-size: 18px;
   margin-left: auto;
+  color: #1a1a1a;
+  display: flex;
+  align-items: center;
 }
 
 .settings-icon:hover {
