@@ -116,42 +116,21 @@ function hideStatus() {
 // Grist Integration
 // ============================================
 
-grist.ready({
-  requiredFields: [],
-  columns: 'all'
-});
+// Initialize Grist widget
+grist.ready();
 
+// Handle single record (the selected row)
 grist.onRecord(function(record) {
-  console.log('=== GRIST onRecord ===');
   console.log('Record received:', record);
-  console.log('Record keys:', record ? Object.keys(record) : 'null');
-  console.log('Record type:', typeof record);
   
   if (record && Object.keys(record).length > 0) {
     currentRecord = record;
-    console.log('Setting currentRecord:', currentRecord);
     renderPreview();
     downloadBtn.disabled = false;
-    
-    rowSelector.innerHTML = '<option value="0" selected>Current Record</option>';
-    allRecords = [record];
-    console.log('Data loaded successfully');
   } else {
-    console.log('Record is empty or null');
     renderEmptyState();
   }
 });
-
-grist.onOptions(function(options, interaction) {
-  console.log('=== GRIST onOptions ===');
-  console.log('Options:', options);
-  console.log('Interaction:', interaction);
-  tableMetadata = options;
-});
-
-console.log('=== Widget Initialized ===');
-console.log('CurrentRecord:', currentRecord);
-console.log('AllRecords:', allRecords);
 
 // ============================================
 // Event Listeners
@@ -209,50 +188,152 @@ downloadBtn.addEventListener('click', async function() {
   showStatus('Generating PDF...', 'loading');
   
   try {
-    const element = previewDiv;
-    const canvas = await html2canvas(element, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff'
-    });
-
-    const imgData = canvas.toDataURL('image/png');
     const { jsPDF } = window.jspdf;
     
+    // Create text-based PDF (not image-based)
     const pdf = new jsPDF({
       orientation: config.orientation,
       unit: 'mm',
       format: config.pageSize
     });
 
-    const pageWidth = config.orientation === 'portrait' 
-      ? (config.pageSize === 'letter' ? 216 : config.pageSize === 'legal' ? 216 : 210)
-      : (config.pageSize === 'letter' ? 279 : config.pageSize === 'legal' ? 356 : 297);
-    
-    const pageHeight = config.orientation === 'portrait'
-      ? (config.pageSize === 'letter' ? 279 : config.pageSize === 'legal' ? 356 : 297)
-      : (config.pageSize === 'letter' ? 216 : config.pageSize === 'legal' ? 216 : 210);
-    
-    const imgHeight = (canvas.height * pageWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    let yPosition = 20;
+    const leftMargin = 15;
+    const rightMargin = pageWidth - 15;
+    const maxWidth = rightMargin - leftMargin;
 
-    pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
-    heightLeft -= pageHeight;
+    // Set font
+    pdf.setFont('helvetica');
 
-    while (heightLeft >= 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
-      heightLeft -= pageHeight;
+    // Add header with logo or institution name
+    if (config.logoUrl) {
+      try {
+        pdf.addImage(config.logoUrl, 'PNG', leftMargin, 10, 50, 20);
+        yPosition = 35;
+      } catch (e) {
+        console.log('Logo load failed, using text instead');
+      }
     }
 
+    if (!config.logoUrl || yPosition === 20) {
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(config.institutionName, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 10;
+    }
+
+    // Add title
+    const studentName = currentRecord[config.nameColumn] || config.documentTitle;
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(String(studentName), pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 8;
+
+    // Add subtitle
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(100, 100, 100);
+    pdf.text('Official Record', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 15;
+
+    // Reset text color
+    pdf.setTextColor(0, 0, 0);
+
+    // Add horizontal line
+    pdf.setDrawColor(26, 115, 232);
+    pdf.line(leftMargin, yPosition, rightMargin, yPosition);
+    yPosition += 10;
+
+    // Add record information
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(12);
+    if (config.includeHeaders) {
+      pdf.text('Record Information', leftMargin, yPosition);
+      yPosition += 8;
+    }
+
+    // Get fields to display
+    const fields = getDisplayFields(currentRecord);
+    
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+
+    // Add fields
+    for (const field of fields) {
+      if (field.isImage && config.includeImages) {
+        // Skip images in text-based PDF (they make it large)
+        continue;
+      }
+
+      const label = field.label;
+      const value = String(field.value).substring(0, 100);
+
+      // Check if we need a new page
+      if (yPosition > pageHeight - 20) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+
+      // Add field
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9);
+      pdf.setTextColor(85, 85, 85);
+      pdf.text(`${label}:`, leftMargin, yPosition);
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(value, leftMargin + 60, yPosition);
+
+      yPosition += 7;
+    }
+
+    yPosition += 5;
+
+    // Add signature line if enabled
+    if (config.includeSignatureLine) {
+      if (yPosition > pageHeight - 40) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.text('Signature', leftMargin, yPosition);
+      yPosition += 10;
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.line(leftMargin, yPosition, leftMargin + 50, yPosition);
+      yPosition += 5;
+      pdf.text('Authorized Signature', leftMargin, yPosition);
+      yPosition += 10;
+      
+      pdf.line(leftMargin, yPosition, leftMargin + 50, yPosition);
+      yPosition += 5;
+      pdf.text('Date', leftMargin, yPosition);
+    }
+
+    // Add footer
+    if (config.includeTimestamp) {
+      const timestamp = new Date().toLocaleString();
+      const idField = Object.entries(currentRecord).find(
+        ([key]) => key.toLowerCase().includes('id') || key.toLowerCase().includes('number')
+      );
+      const recordId = idField ? idField[1] : 'Record';
+
+      pdf.setFontSize(8);
+      pdf.setTextColor(150, 150, 150);
+      pdf.text(`Generated on: ${timestamp}`, leftMargin, pageHeight - 15);
+      pdf.text(`Document ID: ${String(recordId)}-${Date.now()}`, leftMargin, pageHeight - 10);
+    }
+
+    // Download
     const idField = Object.entries(currentRecord).find(
       ([key]) => key.toLowerCase().includes('id') || key.toLowerCase().includes('number')
     );
     const recordId = idField ? String(idField[1]).replace(/\s+/g, '_') : 'Record';
-    
     const filename = `${recordId}-${Date.now()}.pdf`;
     pdf.save(filename);
 
@@ -279,6 +360,35 @@ reloadBtn.addEventListener('click', function() {
   }, 500);
 });
 
+// Initialize with onRecords to get all records
+grist.onRecords(function(records) {
+  if (!records || records.length === 0) {
+    renderEmptyState();
+    return;
+  }
+
+  allRecords = records;
+  
+  // Populate row selector dropdown
+  rowSelector.innerHTML = '<option value="">Select a record to export...</option>';
+  
+  records.forEach((record, index) => {
+    const nameField = Object.entries(record).find(
+      ([key]) => key.toLowerCase().includes('name') && !key.toLowerCase().includes('last')
+    );
+    const displayName = nameField ? String(nameField[1]).substring(0, 50) : `Record ${index + 1}`;
+    
+    const option = document.createElement('option');
+    option.value = index;
+    option.textContent = displayName;
+    rowSelector.appendChild(option);
+  });
+  
+  showStatus(`Loaded ${records.length} record(s)`, 'success');
+  setTimeout(hideStatus, 2000);
+});
+
+// Handle row selection from dropdown
 rowSelector.addEventListener('change', function() {
   const selectedIndex = parseInt(this.value);
   if (!isNaN(selectedIndex) && allRecords[selectedIndex]) {
@@ -290,18 +400,94 @@ rowSelector.addEventListener('change', function() {
   }
 });
 
-// ============================================
-// Rendering Functions
-// ============================================
-
 function renderPreview() {
   if (!currentRecord) {
     renderEmptyState();
     return;
   }
 
-  const html = generatePDFContent(currentRecord);
+  const html = generatePDFPreview(currentRecord);
   previewDiv.innerHTML = html;
+}
+
+function generatePDFPreview(record) {
+  const fields = getDisplayFields(record);
+  const studentName = record[config.nameColumn] || config.documentTitle;
+
+  let html = `
+    <div style="padding: 20px; font-family: Arial, sans-serif; line-height: 1.6;">
+      <div style="text-align: center; border-bottom: 2px solid #1a73e8; padding-bottom: 15px; margin-bottom: 20px;">
+  `;
+
+  if (config.logoUrl) {
+    html += `<img src="${config.logoUrl}" alt="Logo" style="max-height: 40px; margin-bottom: 10px;"><br>`;
+  }
+
+  html += `
+        <h2 style="margin: 0; color: #1a1a1a; font-size: 18px;">${escapeHtml(String(studentName))}</h2>
+        <p style="margin: 5px 0 0 0; color: #666; font-size: 12px;">${escapeHtml(config.institutionName)}</p>
+      </div>
+
+      <h3 style="color: #1a73e8; font-size: 14px; margin-bottom: 15px;">Record Information</h3>
+  `;
+
+  // Add fields in a table-like format
+  html += '<table style="width: 100%; border-collapse: collapse;">';
+  
+  for (const field of fields) {
+    if (field.isImage && config.includeImages) {
+      html += `
+        <tr>
+          <td colspan="2" style="padding: 12px; border: 1px solid #ddd;">
+            <strong>${escapeHtml(field.label)}</strong><br>
+            <img src="${field.value}" alt="${escapeHtml(field.label)}" style="max-width: 100%; max-height: 200px; margin-top: 10px;">
+          </td>
+        </tr>
+      `;
+    } else {
+      html += `
+        <tr>
+          <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold; width: 30%; background: #f5f5f5; word-break: break-word;">
+            ${escapeHtml(field.label)}
+          </td>
+          <td style="padding: 10px; border: 1px solid #ddd;">
+            ${escapeHtml(String(field.value).substring(0, 150))}
+          </td>
+        </tr>
+      `;
+    }
+  }
+
+  html += '</table>';
+
+  if (config.includeSignatureLine) {
+    html += `
+      <div style="margin-top: 30px;">
+        <h3 style="font-size: 12px; margin-bottom: 15px;">Signature</h3>
+        <div style="border-top: 1px solid #333; width: 200px; margin-bottom: 5px;"></div>
+        <p style="font-size: 11px; color: #666; margin: 0;">Authorized Signature</p>
+        <p style="font-size: 11px; color: #666; margin-top: 15px;">Date: ________________</p>
+      </div>
+    `;
+  }
+
+  if (config.includeTimestamp) {
+    const timestamp = new Date().toLocaleString();
+    const idField = Object.entries(record).find(
+      ([key]) => key.toLowerCase().includes('id') || key.toLowerCase().includes('number')
+    );
+    const recordId = idField ? idField[1] : 'Record';
+
+    html += `
+      <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 10px; color: #999; text-align: center;">
+        <p style="margin: 5px 0;">Generated on: ${timestamp}</p>
+        <p style="margin: 5px 0;">Document ID: ${escapeHtml(String(recordId))}-${Date.now()}</p>
+      </div>
+    `;
+  }
+
+  html += '</div>';
+  return html;
 }
 
 function renderEmptyState() {
