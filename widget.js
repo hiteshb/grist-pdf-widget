@@ -191,62 +191,34 @@ downloadBtn.addEventListener('click', async function() {
     // Get the preview HTML
     const previewHTML = generatePDFPreview(currentRecord);
     
-    // Create a temporary container with proper styling for PDF
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = previewHTML;
-    tempDiv.style.position = 'absolute';
-    tempDiv.style.left = '-9999px';
-    tempDiv.style.width = '210mm'; // A4 width
-    document.body.appendChild(tempDiv);
-
-    // Use html2canvas to render (this preserves text as selectable)
-    const canvas = await html2canvas(tempDiv, {
-      scale: 1,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-      allowTaint: true,
-      windowHeight: tempDiv.scrollHeight,
-      windowWidth: 800
-    });
-
-    document.body.removeChild(tempDiv);
-
-    // Convert to PDF using jsPDF
-    const { jsPDF } = window.jspdf;
-    const imgData = canvas.toDataURL('image/png');
+    // Create element for PDF generation
+    const element = document.createElement('div');
+    element.innerHTML = previewHTML;
+    element.style.padding = '20px';
+    element.style.backgroundColor = '#ffffff';
     
-    const pdf = new jsPDF({
-      orientation: config.orientation,
-      unit: 'mm',
-      format: config.pageSize
-    });
-
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    
-    const imgHeight = (canvas.height * pageWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    // Add images to PDF
-    pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft >= 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
-
-    // Download
+    // Get record ID for filename
     const idField = Object.entries(currentRecord).find(
       ([key]) => key.toLowerCase().includes('id') || key.toLowerCase().includes('number')
     );
     const recordId = idField ? String(idField[1]).replace(/\s+/g, '_') : 'Record';
     const filename = `${recordId}-${Date.now()}.pdf`;
-    pdf.save(filename);
+
+    // PDF options
+    const opt = {
+      margin: 10,
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { 
+        orientation: config.orientation, 
+        unit: 'mm', 
+        format: config.pageSize 
+      }
+    };
+
+    // Generate PDF with html2pdf (preserves text selectability)
+    await html2pdf().set(opt).from(element).save();
 
     showStatus(`✓ PDF downloaded: ${filename}`, 'success');
     setTimeout(hideStatus, 3000);
@@ -326,8 +298,8 @@ function generatePDFPreview(record) {
   const studentName = record[config.nameColumn] || config.documentTitle;
 
   let html = `
-    <div style="padding: 20px; font-family: Arial, sans-serif; line-height: 1.6;">
-      <div style="text-align: center; border-bottom: 2px solid #1a73e8; padding-bottom: 15px; margin-bottom: 20px;">
+    <div style="padding: 20px; font-family: Arial, sans-serif; line-height: 1.6; color: #000;">
+      <div style="text-align: center; border-bottom: 3px solid #003d99; padding-bottom: 15px; margin-bottom: 20px;">
   `;
 
   if (config.logoUrl) {
@@ -335,11 +307,11 @@ function generatePDFPreview(record) {
   }
 
   html += `
-        <h2 style="margin: 0; color: #1a1a1a; font-size: 18px;">${escapeHtml(String(studentName))}</h2>
-        <p style="margin: 5px 0 0 0; color: #666; font-size: 12px;">${escapeHtml(config.institutionName)}</p>
+        <h2 style="margin: 0; color: #000; font-size: 18px; font-weight: bold;">${escapeHtml(String(studentName))}</h2>
+        <p style="margin: 5px 0 0 0; color: #333; font-size: 12px; font-weight: 600;">${escapeHtml(config.institutionName)}</p>
       </div>
 
-      <h3 style="color: #1a73e8; font-size: 14px; margin-bottom: 15px;">Record Information</h3>
+      <h3 style="color: #003d99; font-size: 14px; margin-bottom: 15px; font-weight: bold;">Record Information</h3>
   `;
 
   // Add fields in a table-like format
@@ -349,8 +321,8 @@ function generatePDFPreview(record) {
     if (field.isImage && config.includeImages) {
       html += `
         <tr>
-          <td colspan="2" style="padding: 12px; border: 1px solid #ddd;">
-            <strong>${escapeHtml(field.label)}</strong><br>
+          <td colspan="2" style="padding: 12px; border: 1px solid #999; background: #f9f9f9;">
+            <strong style="color: #000; font-size: 12px;">${escapeHtml(field.label)}</strong><br>
             <img src="${field.value}" alt="${escapeHtml(field.label)}" style="max-width: 100%; max-height: 200px; margin-top: 10px;">
           </td>
         </tr>
@@ -358,10 +330,10 @@ function generatePDFPreview(record) {
     } else {
       html += `
         <tr>
-          <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold; width: 30%; background: #f5f5f5; word-break: break-word;">
+          <td style="padding: 10px; border: 1px solid #999; font-weight: bold; width: 30%; background: #e8e8e8; color: #000; word-break: break-word; font-size: 11px;">
             ${escapeHtml(field.label)}
           </td>
-          <td style="padding: 10px; border: 1px solid #ddd;">
+          <td style="padding: 10px; border: 1px solid #999; color: #000; font-size: 11px;">
             ${escapeHtml(String(field.value).substring(0, 150))}
           </td>
         </tr>
@@ -374,10 +346,10 @@ function generatePDFPreview(record) {
   if (config.includeSignatureLine) {
     html += `
       <div style="margin-top: 30px;">
-        <h3 style="font-size: 12px; margin-bottom: 15px;">Signature</h3>
-        <div style="border-top: 1px solid #333; width: 200px; margin-bottom: 5px;"></div>
-        <p style="font-size: 11px; color: #666; margin: 0;">Authorized Signature</p>
-        <p style="font-size: 11px; color: #666; margin-top: 15px;">Date: ________________</p>
+        <h3 style="font-size: 12px; margin-bottom: 15px; color: #000; font-weight: bold;">Signature</h3>
+        <div style="border-top: 2px solid #000; width: 200px; margin-bottom: 5px;"></div>
+        <p style="font-size: 11px; color: #000; margin: 0; font-weight: 500;">Authorized Signature</p>
+        <p style="font-size: 11px; color: #000; margin-top: 15px; font-weight: 500;">Date: ________________</p>
       </div>
     `;
   }
