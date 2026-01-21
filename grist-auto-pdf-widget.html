@@ -687,55 +687,65 @@
       statusDiv.className = 'status';
     }
 
-    // Initialize Grist widget
+    // Initialize Grist widget with full table access
     grist.ready({
       requiredFields: [],
-      columns: 'all'
+      columns: 'all',
+      requiredAccess: 'read table'
     });
 
-    // Handle record selection
+    // Handle record selection from single record
     grist.onRecord(function(record) {
       currentRecord = record;
       renderPreview();
       downloadBtn.disabled = false;
-      showStatus('Record loaded', 'success');
-      setTimeout(hideStatus, 2000);
     });
 
-    // Handle multiple records
-    grist.onRecords(function(records) {
-      allRecords = records;
-      
-      // Populate row selector dropdown
-      rowSelector.innerHTML = '<option value="">Select a record to export...</option>';
-      
-      records.forEach((record, index) => {
-        // Try to get a display name for the option
-        const nameField = Object.entries(record).find(
-          ([key]) => key.toLowerCase().includes('name') || key.toLowerCase() === 'fullname'
-        );
-        const displayName = nameField ? nameField[1] : `Record ${index + 1}`;
+    // Fetch all records from the table
+    async function fetchAllRecords() {
+      try {
+        const table = grist.getTable();
+        const tableData = await table.fetchRecords();
         
-        const option = document.createElement('option');
-        option.value = index;
-        option.textContent = `${displayName}`;
-        rowSelector.appendChild(option);
-      });
-      
-      if (records.length > 0 && !currentRecord) {
-        currentRecord = records[0];
-        renderPreview();
-        downloadBtn.disabled = false;
-        showStatus(`Loaded ${records.length} record(s)`, 'success');
-        setTimeout(hideStatus, 2000);
+        if (tableData && tableData.records && tableData.records.length > 0) {
+          allRecords = tableData.records;
+          
+          // Populate row selector dropdown
+          rowSelector.innerHTML = '<option value="">Select a record to export...</option>';
+          
+          allRecords.forEach((record, index) => {
+            // Try to get a display name for the option
+            const nameField = Object.entries(record.fields || {}).find(
+              ([key]) => key.toLowerCase().includes('name') || key.toLowerCase() === 'fullname'
+            );
+            const displayName = nameField ? nameField[1] : `Record ${index + 1}`;
+            
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = `${displayName}`;
+            rowSelector.appendChild(option);
+          });
+          
+          showStatus(`Loaded ${allRecords.length} record(s)`, 'success');
+          setTimeout(hideStatus, 2000);
+        }
+      } catch (error) {
+        console.error('Error fetching records:', error);
+        showStatus('Error loading records', 'error');
+        setTimeout(hideStatus, 3000);
       }
-    });
+    }
+
+    // Fetch records when widget loads
+    setTimeout(fetchAllRecords, 500);
 
     // Handle row selection
     rowSelector.addEventListener('change', function() {
       const selectedIndex = parseInt(this.value);
       if (!isNaN(selectedIndex) && allRecords[selectedIndex]) {
-        currentRecord = allRecords[selectedIndex];
+        // Convert Grist record format to our format
+        const selectedRecord = allRecords[selectedIndex].fields || {};
+        currentRecord = selectedRecord;
         renderPreview();
         downloadBtn.disabled = false;
         showStatus('Record selected', 'success');
