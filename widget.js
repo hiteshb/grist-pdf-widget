@@ -263,91 +263,37 @@ downloadBtn.addEventListener('click', async function() {
       return value.includes('http') || value.includes('data:image') || value.includes('.jpg') || value.includes('.png');
     });
 
-    // Add text fields in 2-column layout
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(9);
-
-    let col1Fields = [];
-    let col2Fields = [];
-
-    for (let i = 0; i < textFields.length; i++) {
-      if (i % 2 === 0) {
-        col1Fields.push(textFields[i]);
-      } else {
-        col2Fields.push(textFields[i]);
-      }
-    }
-
-    // Draw text fields in two columns
-    let col1Y = yPosition;
-    let col2Y = yPosition;
-    const colWidth = (maxWidth - 5) / 2;
-    const col1X = leftMargin;
-    const col2X = leftMargin + colWidth + 5;
-
+    // Add text fields in SINGLE COLUMN (stacked) layout
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(11);
-    pdf.text('Information', col1X, col1Y);
-    col1Y += 7;
+    pdf.text('Information', leftMargin, yPosition);
+    yPosition += 8;
 
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(8);
 
-    // Column 1
-    for (const field of col1Fields) {
-      if (col1Y + 15 > pageHeight - 20) {
-        checkPageBreak(20);
-        col1Y = yPosition;
-      }
+    // Single column - stacked view
+    for (const field of textFields) {
+      checkPageBreak(15);
       
       // Field label
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(7);
+      pdf.setFontSize(8);
       pdf.setTextColor(70, 70, 70);
-      
-      // Wrap label if it's too long
-      const labelLines = pdf.splitTextToSize(field.label + ':', colWidth - 3);
-      pdf.text(labelLines, col1X, col1Y);
-      col1Y += labelLines.length * 2.5;
+      pdf.text(field.label + ':', leftMargin, yPosition);
+      yPosition += 4;
 
       // Field value with proper text wrapping
       pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(7);
+      pdf.setFontSize(8);
       pdf.setTextColor(0, 0, 0);
-      const value = String(field.value).substring(0, 300); // Increased limit for long agreements
-      const splitValue = pdf.splitTextToSize(value, colWidth - 3);
-      pdf.text(splitValue, col1X + 1, col1Y);
-      col1Y += splitValue.length * 2.8 + 5;
+      const value = String(field.value).substring(0, 500);
+      const splitValue = pdf.splitTextToSize(value, maxWidth - 2);
+      pdf.text(splitValue, leftMargin + 2, yPosition);
+      yPosition += splitValue.length * 3.2 + 6;
     }
 
-    // Column 2
-    for (const field of col2Fields) {
-      if (col2Y + 15 > pageHeight - 20) {
-        checkPageBreak(20);
-        col2Y = yPosition;
-      }
-
-      // Field label
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(7);
-      pdf.setTextColor(70, 70, 70);
-      
-      // Wrap label if it's too long
-      const labelLines = pdf.splitTextToSize(field.label + ':', colWidth - 3);
-      pdf.text(labelLines, col2X, col2Y);
-      col2Y += labelLines.length * 2.5;
-
-      // Field value with proper text wrapping
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(7);
-      pdf.setTextColor(0, 0, 0);
-      const value = String(field.value).substring(0, 300); // Increased limit for long agreements
-      const splitValue = pdf.splitTextToSize(value, colWidth - 3);
-      pdf.text(splitValue, col2X + 1, col2Y);
-      col2Y += splitValue.length * 2.8 + 5;
-    }
-
-    yPosition = Math.max(col1Y, col2Y) + 10;
+    yPosition += 5;
 
     // Add image attachments (ID proofs, photos, etc)
     if (imageFields.length > 0) {
