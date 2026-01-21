@@ -247,9 +247,21 @@ downloadBtn.addEventListener('click', async function() {
     // Get fields to display
     const fields = getDisplayFields(currentRecord);
     
-    // Separate text fields and image fields
-    const textFields = fields.filter(f => !f.isImage);
-    const imageFields = fields.filter(f => f.isImage && config.includeImages);
+    // Separate text fields and image fields - filter out only booleans with true/false, keep agreements
+    const textFields = fields.filter(f => {
+      const value = String(f.value).toLowerCase();
+      // Only skip pure boolean true/false values, keep all text fields including agreements
+      if (value === 'true' || value === 'false') return false;
+      if (f.isImage) return false;
+      return true;
+    });
+
+    const imageFields = fields.filter(f => {
+      // Only include actual image URLs/data, not numeric IDs
+      if (!f.isImage) return false;
+      const value = String(f.value).toLowerCase();
+      return value.includes('http') || value.includes('data:image') || value.includes('.jpg') || value.includes('.png');
+    });
 
     // Add text fields in 2-column layout
     pdf.setFont('helvetica', 'normal');
@@ -283,44 +295,56 @@ downloadBtn.addEventListener('click', async function() {
 
     // Column 1
     for (const field of col1Fields) {
-      checkPageBreak(8);
+      if (col1Y + 15 > pageHeight - 20) {
+        checkPageBreak(20);
+        col1Y = yPosition;
+      }
       
       // Field label
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(8);
+      pdf.setFontSize(7);
       pdf.setTextColor(70, 70, 70);
-      pdf.text(field.label + ':', col1X, col1Y);
-      col1Y += 4;
+      
+      // Wrap label if it's too long
+      const labelLines = pdf.splitTextToSize(field.label + ':', colWidth - 3);
+      pdf.text(labelLines, col1X, col1Y);
+      col1Y += labelLines.length * 2.5;
 
-      // Field value
+      // Field value with proper text wrapping
       pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7);
       pdf.setTextColor(0, 0, 0);
-      const value = String(field.value).substring(0, 80);
-      const splitValue = pdf.splitTextToSize(value, colWidth - 2);
-      pdf.text(splitValue, col1X + 2, col1Y);
-      col1Y += splitValue.length * 3.5 + 4;
+      const value = String(field.value).substring(0, 300); // Increased limit for long agreements
+      const splitValue = pdf.splitTextToSize(value, colWidth - 3);
+      pdf.text(splitValue, col1X + 1, col1Y);
+      col1Y += splitValue.length * 2.8 + 5;
     }
 
     // Column 2
     for (const field of col2Fields) {
-      if (col2Y > col1Y - 5) {
-        col2Y = col1Y - 5;
+      if (col2Y + 15 > pageHeight - 20) {
+        checkPageBreak(20);
+        col2Y = yPosition;
       }
 
       // Field label
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(8);
+      pdf.setFontSize(7);
       pdf.setTextColor(70, 70, 70);
-      pdf.text(field.label + ':', col2X, col2Y);
-      col2Y += 4;
+      
+      // Wrap label if it's too long
+      const labelLines = pdf.splitTextToSize(field.label + ':', colWidth - 3);
+      pdf.text(labelLines, col2X, col2Y);
+      col2Y += labelLines.length * 2.5;
 
-      // Field value
+      // Field value with proper text wrapping
       pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7);
       pdf.setTextColor(0, 0, 0);
-      const value = String(field.value).substring(0, 80);
-      const splitValue = pdf.splitTextToSize(value, colWidth - 2);
-      pdf.text(splitValue, col2X + 2, col2Y);
-      col2Y += splitValue.length * 3.5 + 4;
+      const value = String(field.value).substring(0, 300); // Increased limit for long agreements
+      const splitValue = pdf.splitTextToSize(value, colWidth - 3);
+      pdf.text(splitValue, col2X + 1, col2Y);
+      col2Y += splitValue.length * 2.8 + 5;
     }
 
     yPosition = Math.max(col1Y, col2Y) + 10;
@@ -348,12 +372,21 @@ downloadBtn.addEventListener('click', async function() {
           pdf.text(imageField.label + ':', leftMargin, yPosition);
           yPosition += 6;
 
-          // Add image
-          pdf.addImage(imageField.value, 'JPEG', leftMargin + 2, yPosition, 80, 60);
+          // Add image with auto-detection of format
+          const imgValue = String(imageField.value);
+          let imgFormat = 'JPEG';
+          
+          if (imgValue.includes('.png') || imgValue.includes('data:image/png')) {
+            imgFormat = 'PNG';
+          } else if (imgValue.includes('.gif') || imgValue.includes('data:image/gif')) {
+            imgFormat = 'GIF';
+          }
+
+          pdf.addImage(imageField.value, imgFormat, leftMargin + 2, yPosition, 80, 60);
           yPosition += 65;
 
         } catch (e) {
-          console.log('Image load failed for:', imageField.label);
+          console.log('Image load failed for:', imageField.label, e.message);
           yPosition += 10;
         }
       }
